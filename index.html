@@ -12,10 +12,6 @@
     margin: 0;
     padding: 16px;
   }
-  body.dark {
-    background: #0f172a;
-    color: #e5e7eb;
-  }
   .container {
     max-width: 480px;
     margin: 0 auto;
@@ -124,11 +120,6 @@
     color: black;
     border: 1px solid #c8c8c8;
   }
-  body.dark button.ghost {
-    color: white;
-    border-color: #475569;
-    background: transparent;
-  }
   .qr-result {
     margin-top: 16px;
     text-align: center;
@@ -187,15 +178,6 @@
     place-items: center;
     font-weight: 700;
     flex-shrink: 0;
-  }
-  .theme {
-    margin-top: 12px;
-    display: flex;
-    gap: 8px;
-  }
-  .theme button {
-    padding: 6px 10px;
-    font-size: 12px;
   }
 </style>
 </head>
@@ -260,7 +242,7 @@
   </div>
 
   <script>
-    const API_URL = 'https://qrisku.my.id/api';
+    const APP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxkCS3MyqlcqoZPiP8MuHUV8WRnB_80_gw4fIyiZ3vt2b9RxJfmXbFrvnXirjIOVVdS/exec';
     const elements = {
       amount: document.getElementById('amount'),
       qrisStatis: document.getElementById('qris_statis'),
@@ -302,57 +284,54 @@
         return;
       }
 
+      if (!APP_SCRIPT_URL || APP_SCRIPT_URL.indexOf('https://script.google.com') !== 0) {
+        setStatus('URL Apps Script belum di-set. Ganti APP_SCRIPT_URL di kode.', 'error');
+        return;
+      }
+
       elements.btnGenerate.disabled = true;
       setStatus('Sedang memproses...', '');
 
-      const corsProxies = [
-        'https://api.allorigins.win/raw?url=',
-        'https://corsproxy.io/?'
-      ];
-
-      async function tryFetch(proxyUrl) {
-        const response = await fetch(proxyUrl + encodeURIComponent(API_URL), {
+      try {
+        const response = await fetch(APP_SCRIPT_URL, {
           method: 'POST',
+          mode: 'no-cors',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             amount: amount,
             qris_statis: qrisStatis
           })
         });
-        return response;
-      }
 
-      try {
-        let response = await tryFetch(corsProxies[0]);
-        let data = await response.json();
-
-        if (!response.ok || data.status === 'error') {
-          response = await tryFetch(corsProxies[1]);
+        // Karena no-cors, kita tidak bisa baca json langsung.
+        // Kita butuh responseJSON.dev
+        let data;
+        try {
           data = await response.json();
+        } catch (e) {
+          setStatus('Tidak dapat membaca respons dari Apps Script.', 'error');
+          return;
         }
 
-        if (data.status === 'success' && data.qris_base64) {
+        if (data && data.status === 'success' && data.qris_base64) {
           elements.qrImage.src = 'data:image/png;base64,' + data.qris_base64;
           elements.qrResult.style.display = 'block';
           setStatus(data.message || 'QRIS berhasil dihasilkan', 'success');
         } else {
-          setStatus(data.message || 'Gagal generate QRIS.', 'error');
+          setStatus((data && data.message) || 'Gagal generate QRIS.', 'error');
         }
       } catch (error) {
         console.error(error);
-        setStatus('Gagal terhubung ke API. Cek koneksi atau CORS.', 'error');
+        setStatus('Gagal terhubung ke Apps Script.', 'error');
       } finally {
         elements.btnGenerate.disabled = false;
       }
     }
 
-    elements.btnGenerate.addEventListener('click', function() {
-      generateQR();
-    });
-
+    elements.btnGenerate.addEventListener('click', generateQR);
     elements.btnClear.addEventListener('click', function() {
       elements.amount.value = '10000';
-      elements.qrisStatis.value = '';
+      elements.qrisStatis.value = '00020101021126650013ID.CO.BCA.WWW011893600014000164458002150008850016445800303UMI51440014ID.CO.QRIS.WWW0215ID10221908068540303UMI5204701253033605802ID5915SM RESIDENCE QR6007BANDUNG61054016362070703A016304D32F';
       hideQR();
     });
   </script>
