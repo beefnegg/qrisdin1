@@ -305,8 +305,13 @@
       elements.btnGenerate.disabled = true;
       setStatus('Sedang memproses...', '');
 
-      try {
-        const response = await fetch(API_URL, {
+      const corsProxies = [
+        'https://api.allorigins.win/raw?url=',
+        'https://corsproxy.io/?'
+      ];
+
+      async function tryFetch(proxyUrl) {
+        const response = await fetch(proxyUrl + encodeURIComponent(API_URL), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -314,8 +319,17 @@
             qris_statis: qrisStatis
           })
         });
+        return response;
+      }
 
-        const data = await response.json();
+      try {
+        let response = await tryFetch(corsProxies[0]);
+        let data = await response.json();
+
+        if (!response.ok || data.status === 'error') {
+          response = await tryFetch(corsProxies[1]);
+          data = await response.json();
+        }
 
         if (data.status === 'success' && data.qris_base64) {
           elements.qrImage.src = 'data:image/png;base64,' + data.qris_base64;
@@ -326,7 +340,7 @@
         }
       } catch (error) {
         console.error(error);
-        setStatus('Gagal terhubung ke API. Cek koneksi atau kemungkinan CORS.', 'error');
+        setStatus('Gagal terhubung ke API. Cek koneksi atau CORS.', 'error');
       } finally {
         elements.btnGenerate.disabled = false;
       }
