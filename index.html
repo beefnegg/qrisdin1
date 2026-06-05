@@ -200,11 +200,13 @@
     <h1>SM RESIDENCE QR</h1>
     <div class="nmid">NMID : ID1022190806854</div>
 
-    <div class="card">
+    <div class="card" id="inputCard">
       <label for="amount">Nominal (Rp)</label>
       <textarea id="amount" rows="1">10000</textarea>
-      <label for="qris_statis">QRIS Statis</label>
-      <textarea id="qris_statis" rows="4">00020101021126650013ID.CO.BCA.WWW011893600014000164458002150008850016445800303UMI51440014ID.CO.QRIS.WWW0215ID10221908068540303UMI5204701253033605802ID5915SM RESIDENCE QR6007BANDUNG61054016362070703A016304D32F</textarea>
+      <div id="qrisStatisWrapper">
+        <label for="qris_statis">QRIS Statis</label>
+        <textarea id="qris_statis" rows="4">00020101021126650013ID.CO.BCA.WWW011893600014000164458002150008850016445800303UMI51440014ID.CO.QRIS.WWW0215ID10221908068540303UMI5204701253033605802ID5915SM RESIDENCE QR6007BANDUNG61054016362070703A016304D32F</textarea>
+      </div>
       <div class="actions">
         <button class="ghost" id="btnClear" type="button">Reset</button>
         <button id="btnGenerate" type="button">Buat QRIS</button>
@@ -250,7 +252,8 @@
       btnClear: document.getElementById('btnClear'),
       status: document.getElementById('status'),
       qrResult: document.getElementById('qrResult'),
-      qrImage: document.getElementById('qrImage')
+      qrImage: document.getElementById('qrImage'),
+      qrisStatisWrapper: document.getElementById('qrisStatisWrapper')
     };
 
     function setStatus(message, type) {
@@ -284,45 +287,50 @@
         return;
       }
 
-      if (!APP_SCRIPT_URL || APP_SCRIPT_URL.indexOf('https://script.google.com') !== 0) {
-        setStatus('URL Apps Script belum di-set. Ganti APP_SCRIPT_URL di kode.', 'error');
-        return;
-      }
+      const corsProxies = [
+        'https://api.allorigins.win/raw?url=',
+        'https://corsproxy.io/?'
+      ];
 
       elements.btnGenerate.disabled = true;
       setStatus('Sedang memproses...', '');
 
-      try {
-        const response = await fetch(APP_SCRIPT_URL, {
+      const API_URL = 'https://qrisku.my.id/api';
+
+      async function postThroughProxy(proxyUrl) {
+        const response = await fetch(proxyUrl + encodeURIComponent(API_URL), {
           method: 'POST',
-          mode: 'no-cors',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            amount: amount,
+            amount,
             qris_statis: qrisStatis
           })
         });
+        return response;
+      }
 
-        // Karena no-cors, kita tidak bisa baca json langsung.
-        // Kita butuh responseJSON.dev
-        let data;
-        try {
-          data = await response.json();
-        } catch (e) {
-          setStatus('Tidak dapat membaca respons dari Apps Script.', 'error');
-          return;
+      try {
+        let response = await postThroughProxy(corsProxies[0]);
+        let data = await response.json().catch(() => ({}));
+
+        if (data.status === 'error' || !response.ok) {
+          response = await postThroughProxy(corsProxies[1]);
+          data = await response.json().catch(() => ({}));
         }
 
-        if (data && data.status === 'success' && data.qris_base64) {
+        if (data.status === 'success' && data.qris_base64) {
           elements.qrImage.src = 'data:image/png;base64,' + data.qris_base64;
           elements.qrResult.style.display = 'block';
+          if (elements.qrisStatisWrapper) {
+            elements.qrisStatisWrapper.style.display = 'none';
+          }
           setStatus(data.message || 'QRIS berhasil dihasilkan', 'success');
         } else {
-          setStatus((data && data.message) || 'Gagal generate QRIS.', 'error');
+          setStatus(data.message || 'Gagal generate QRIS.', 'error');
         }
       } catch (error) {
         console.error(error);
-        setStatus('Gagal terhubung ke Apps Script.', 'error');
+        setStatus('Gagal terhubung ke API. Cek koneksi atau CORS.', 'error');
       } finally {
         elements.btnGenerate.disabled = false;
       }
